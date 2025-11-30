@@ -181,6 +181,6 @@ cython_debug/
 .cursorindexingignore
 
 # My own
-.venv-linux/
-.venv-win/
-.ARCHIVES/
+.venv-linux
+.venv-win
+.ARCHIVES
