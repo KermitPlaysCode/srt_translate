@@ -1,0 +1,6 @@
+pymediainfo
+argostranslate
+# argos-translate-files
+# too big
+streamlit
+chardet
