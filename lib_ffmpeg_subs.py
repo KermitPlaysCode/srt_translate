@@ -45,7 +45,7 @@ class FfmpegExtractSubs:
         with open(source, "rb") as fin:
             self.mi = MediaInfo.parse(fin)
         # Open did not work, self.mi still None
-        if self.mi == None:
+        if self.mi is None:
             return self.E_INPUT_FILE_OPEN_ERROR
         # Autofind the track
         stream_id = self.__determine_track(auto_first=lang)
