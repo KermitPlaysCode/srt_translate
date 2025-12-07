@@ -1,3 +1,5 @@
+"""LIbrary to simplify my usage of translation : translateLocally"""
+
 from os.path import isfile
 from os import system
 
@@ -8,18 +10,20 @@ TR_INVALID_FILE = 1
 # Source/Target languages unsupported by target libretranslate instance
 TR_LANG_MIX_UNSUPPORTED = 2
 
-class translateLocally:
+class TranslateLocally:
     """A class to use translateLocally HTML english to french tiny
     """
-    def __init__(self):
+    def __init__(self, executable=None):
         # Parameters
         self._parameters = {
             "executable": "/usr/bin/translateLocally",
             "model": "-m en-fr-tiny",
-            "format": "--html"
+            "format": ""
         }
+        if executable is not None:
+            self._parameters["executable"] = executable
 
-    def setFormat(self, mode:str):
+    def set_format(self, mode:str):
         """Set if file is txt or HTML"""
         if mode == "txt":
             self._parameters['format'] = ""
@@ -33,7 +37,10 @@ class translateLocally:
             return TR_INVALID_FILE
         cmd = f"{self._parameters['executable']} "
         cmd += f"{self._parameters['model']} {self._parameters['format']} "
-        cmd += f'--input "{file_in}" --output "{file_out}"'
-        print("RUN:",cmd)
+        cmd += f'--input "{file_in}" --output "{file_out+".tmp"}"'
         system(cmd)
+        with open(file_out+".tmp", "r", encoding='ansi') as fin:
+            tmp = fin.read()
+            with open(file_out, "w", encoding='utf-8') as fout:
+                fout.write(tmp)
         return TR_OK
