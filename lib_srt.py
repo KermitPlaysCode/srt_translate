@@ -1,6 +1,8 @@
 """SRT reference @ https://docs.fileformat.com/video/srt/"""
 
+from os import remove
 import re
+import chardet
 
 BLK_ID = 1
 BLK_TIMES = 2
@@ -11,13 +13,16 @@ BLK_MISPLACED_BLANK = 16
 
 BALISE = 'div'
 NEWLINE = '\n'
+MUSICNOTE = 'â™ª'
+ITALIC = '<i>'
+ITALIC_END = '</i>'
 
 char_matrix = {
     '-': 'dash',
     '*': 'star'
 }
 
-class srt():
+class Srt():
     """
     Class to manipulate subtitles from SRT file
     """
@@ -31,6 +36,7 @@ class srt():
         self.subs = []
         self._current_id = 1
         self._current_line = 0 # keep track where is the issue, when I detect one
+        self._cleanup = [] # files to remove at cleanup time
         return
 
     # 4 _is_valid_xxx() = 4 types of blocks in SRT file
@@ -80,7 +86,7 @@ class srt():
         if txt == "":
             return True
         return False
-    
+
     # loop and save v2
     def _detect_and_save_line(self, line:str):
         """Analyze a line of content and store in a table"""
@@ -94,23 +100,35 @@ class srt():
             t_id = 'id' in self._current_sub
             t_times = 'times' in self._current_sub
             t_text = 'text' in self._current_sub
+            if 'italic' not in self._current_sub:
+                self._current_sub['italic'] = False
+            if 'music' not in  self._current_sub:
+                self._current_sub['music'] = False
             if t_id and t_times and t_text:
                 # 3 conditions met => youpi
                 self.subs.append({
                                 'id': self._current_sub['id'],
                                 'times': self._current_sub['times'],
-                                'text': self._current_sub['text']
+                                'text': self._current_sub['text'],
+                                'music': self._current_sub['music'],
+                                'italic': self._current_sub['italic']
                             })
                 self._current_id += 1
                 self._current_sub = {}
                 return BLK_BLANK
             else:
-                print(f"Warning : blank line detected and missing data : ID={t_id} TIMES={t_times} TEXT={t_text} LINE={self._current_line}")
                 # Reset anyway
                 self._current_id += 1
                 self._current_sub = {}
             return BLK_MISPLACED_BLANK
         elif self._is_valid_text(line):
+            if ITALIC in line or ITALIC_END in line:
+                self._current_sub['italic'] = True
+                line = line.replace(ITALIC,'')
+                line = line.replace(ITALIC_END,'')
+            if MUSICNOTE in line: # note de musique
+                self._current_sub['music'] = True
+                line = line.replace(MUSICNOTE,'')
             if 'text' not in self._current_sub:
                 self._current_sub['text'] = [line]
             else:
@@ -131,13 +149,11 @@ class srt():
                 self._current_line += 1
                 self._detect_and_save_line(line_ascii)
                 line = fin.readline()
-        print(f'_load: lines={self._current_line} id={self._current_id}')
         return 0
 
     def srt_to_txt(self, input_srt, output_txt):
         """Convert SRT into a text file + a separate file with ID and timecodes
         txt_content = text strings only, 1 sub per line"""
-        print(f"SRT conversion '{input_srt}' > '{output_txt}'")
         r = 0
         txt_content = ""
         self.subs = []
@@ -149,28 +165,54 @@ class srt():
             txt_content += ' '.join(sub['text']) + NEWLINE
         with open(output_txt, "w", encoding="utf-8") as fout:
             fout.write(txt_content)
+        self._cleanup.append(output_txt)
         return len(txt_content)
+
+    def _to_utf8(self, input_txt) -> str | None:
+        enc = ""
+        text_sample = ""
+        with open(input_txt,'rb') as fin:
+            text_sample = fin.read()
+            charcode = chardet.detect(text_sample)
+            enc = charcode['encoding']
+        if enc != 'utf-8' and enc != "" and text_sample != "":
+            with open(input_txt,'w', encoding='utf-8') as fout:
+                fout.write(text_sample.decode('utf-8'))
+        return enc
 
     def txt_to_srt(self, input_txt, output_srt):
         """Convert translated TXT back to SRT using saved id and timecodes"""
-        print(f"TXT conversion '{input_txt}' > '{output_srt}'")
         srt_content = ""
         txt_line = 0
+        self._to_utf8(input_txt)
         with open(input_txt, "r", encoding="utf-8") as fin:
             for sub in self.subs:
-                translated = fin.readline()
+                translated = fin.readline().rstrip()
                 txt_line += 1
+                m = "" # music
+                i = "" # italic
+                ie = "" # italic end
+                if sub['music']:
+                    m = MUSICNOTE +'¨'
+                if sub['italic']:
+                    i = ITALIC
+                    ie = ITALIC_END
                 if int(sub['id']) == txt_line:
                     srt_content += f"{sub['id']}{NEWLINE}"
                     srt_content += f"{sub['times']}{NEWLINE}"
-                    srt_content += f"{translated}{NEWLINE}"
+                    srt_content += f"{i}{m}{translated}{m}{ie}{NEWLINE}{NEWLINE}"
                 else:
-                    print(f"Err: txt_line={txt_line} id={sub['id']} tc={sub['times']} {translated}")
+                    # Bad way to track error, print :
+                    print(f"Bad ID: line={txt_line} id={sub['id']} tc={sub['times']} {translated}")
         with open(output_srt, "w", encoding='utf-8') as fout:
-            print("Save to", output_srt)
             fout.write(srt_content)
         return 0
 
     def all(self):
         """Sends back the bunch of subs once extracted from the SRT file"""
         return self.subs
+
+    def cleanup_txt(self):
+        """Remove intermediate txt files"""
+        for f in self._cleanup:
+            remove(f)
