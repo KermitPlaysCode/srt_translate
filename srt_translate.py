@@ -20,6 +20,10 @@ cli.add_argument('-f','--input_sub',
                  help="Input SRT (takes precedence over -i)", default=None)
 cli.add_argument('-F','--output_sub',
                  help="Output SRT (takes precedence over -o)", default=None)
+cli.add_argument('-u','--uri',
+                 help="URI for libretranslate", default=None)
+cli.add_argument('-E','--engine',
+                 help="Specify engine: locally, libretranslate or argos (default)", default='argos')
 args = cli.parse_args()
 
 my_work = Work()
@@ -33,6 +37,6 @@ if worksheet['extract']:
 elif worksheet['translate']:
     print("Action: translate")
     my_work.run_translate(worksheet)
-print(worksheet)
+
 # Job done
 print("Complete")
